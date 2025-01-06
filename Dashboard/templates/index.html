@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Lane Detection Stream</title>
+    <style>
+        body {
+            text-align: center;
+            background-color: #333;
+            color: white;
+            font-family: Arial, Helvetica, sans-serif;
+        }
+        h1 {
+            margin-top: 20px;
+        }
+        .container {
+            display: flex;
+            justify-content: center;
+            margin-top: 20px;
+        }
+        img {
+            border: 5px solid #555;
+        }
+    </style>
+</head>
+<body>
+    <h1>Real-Time Lane Detection</h1>
+    <div class="container">
+        <img src="{{ url_for('video_feed') }}">
+    </div>
+</body>
+</html>

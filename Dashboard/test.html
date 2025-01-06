@@ -1,0 +1,157 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>RPM Gauge</title>
+</head>
+
+<style>
+    * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+    }
+
+    body {
+        font-family: "Roboto", sans-serif;
+        background-color: #0d1117;
+        display: flex;
+        justify-content: center;
+        align-items: flex-end;
+        height: 100vh;
+    }
+
+    .gauge {
+        width: 100%; /* 60% wider */
+        max-width: 800px;
+        font-size: 24px;
+        color: #004033;
+        position: absolute;
+        bottom: 0;
+        left: 25%;
+        transform: translateX(5%);
+    }
+
+    .gauge__body {
+        width: 100%;
+        height: 0;
+        padding-bottom: 50%; /* 30% taller (previously 50%, now 65%) */
+        background: #333;
+        position: relative;
+        border-top-left-radius: 100% 200%;
+        border-top-right-radius: 100% 200%;
+        overflow: hidden;
+    }
+
+    .gauge__fill {
+        position: absolute;
+        top: 100%;
+        left: 0;
+        width: inherit;
+        height: 100%;
+        background: blue;
+        transform-origin: center top;
+        transform: rotate(0.25turn);
+        transition: transform 0.2s ease-out, background-color 0.2s ease-out;
+    }
+
+    .gauge__cover {
+        width: 75%;
+        height: 150%;
+        background: black;
+        border-radius: 50%;
+        position: absolute;
+        top: 25%;
+        left: 50%;
+        transform: translateX(-50%);
+    
+        /* Text */
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding-bottom: 25%;
+        box-sizing: border-box;
+        font-size: 3rem;
+        font-weight: bold;
+        color: white;
+    }
+</style>
+
+<body>
+    <div class="gauge">
+        <div class="gauge__body">
+            <div class="gauge__fill"></div>
+            <div class="gauge__cover"></div>
+        </div>
+    </div>
+</body>
+
+<script>
+    const gaugeElement = document.querySelector(".gauge");
+
+    /**
+     * Sets the gauge value, updates rotation of the needle and the text inside the gauge.
+     * @param {HTMLElement} gauge - The gauge container element.
+     * @param {number} rpm - The RPM value (0 to 8000).
+     */
+    function setGaugeValue(gauge, rpm) {
+        const maxRpm = 8000; // Maximum RPM for the gauge
+        if (rpm < 0 || rpm > maxRpm) {
+            console.error("RPM value out of range (0-8000)");
+            return;
+        }
+
+        // Calculate the rotation for the needle (0 to 1 represents 0 to 50% rotation)
+        const value = rpm / maxRpm;
+        gauge.querySelector(".gauge__fill").style.transform = `rotate(${value / 2}turn)`;
+
+        // Change the color from blue to green to red as RPM increases
+        const color = getColorTransition(value); // Blue to Green to Red
+        gauge.querySelector(".gauge__fill").style.backgroundColor = color;
+
+        // Update the text in the center of the gauge to display RPM
+        gauge.querySelector(".gauge__cover").textContent = `${Math.round(rpm)} RPM`;
+    }
+
+    /**
+     * Get the color that transitions from blue (0%) to green (50%) to red (100%).
+     * @param {number} factor - A value between 0 and 1 representing the percentage of RPM.
+     * @returns {string} The interpolated color as a hex value.
+     */
+    function getColorTransition(factor) {
+        if (factor <= 0.5) {
+            // Transition from Blue (#0000FF) to Green (#00FF00)
+            return interpolateColor("#0000FF", "#00FF00", factor * 2); // Multiply by 2 to normalize (0 to 0.5)
+        } else {
+            // Transition from Green (#00FF00) to Red (#FF0000)
+            return interpolateColor("#00FF00", "#FF0000", (factor - 0.5) * 2); // Multiply by 2 to normalize (0.5 to 1)
+        }
+    }
+
+    function interpolateColor(color1, color2, factor) {
+        let r1 = parseInt(color1.slice(1, 3), 16);
+        let g1 = parseInt(color1.slice(3, 5), 16);
+        let b1 = parseInt(color1.slice(5, 7), 16);
+
+        let r2 = parseInt(color2.slice(1, 3), 16);
+        let g2 = parseInt(color2.slice(3, 5), 16);
+        let b2 = parseInt(color2.slice(5, 7), 16);
+
+        const r = Math.round(r1 + (r2 - r1) * factor);
+        const g = Math.round(g1 + (g2 - g1) * factor);
+        const b = Math.round(b1 + (b2 - b1) * factor);
+
+        return `rgb(${r},${g},${b})`;
+    }
+
+    // Simulate RPM changes (for demonstration)
+    let rpm = 0;
+    setInterval(() => {
+        rpm = (rpm + 5) % 8000;
+        setGaugeValue(gaugeElement, rpm);
+    }, 10);
+</script>
+
+</html>
