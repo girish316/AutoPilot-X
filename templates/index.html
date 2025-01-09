@@ -1,0 +1,124 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Remote Vehicle Control Dashboard</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            overflow: hidden;
+            font-family: Arial, sans-serif;
+            background-color: #1c1f26;
+        }
+
+        img#cameraFeed {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            z-index: -1;
+        }
+
+        .controls {
+            position: absolute;
+            bottom: 20px;
+            left: 20px;
+            z-index: 1;
+        }
+
+        .button {
+            padding: 10px 20px;
+            margin: 5px;
+            font-size: 16px;
+            cursor: pointer;
+            border: none;
+            border-radius: 5px;
+            color: white;
+        }
+
+        .button-primary {
+            background-color: #4CAF50;
+        }
+
+        .button-danger {
+            background-color: #f44336;
+        }
+    </style>
+</head>
+<body>
+    <!-- MJPEG Stream -->
+    <img id="cameraFeed" src="/stream" alt="Camera Feed">
+
+    <!-- Controls -->
+    <div class="controls">
+        <button id="autoToggleBtn" class="button button-primary" onclick="toggleAutoMode()">Enable Auto</button>
+        <button class="button button-danger" onclick="sendCommand('emergency_stop')">Emergency Stop</button>
+    </div>
+
+    <script>
+        let autoModeEnabled = false;  // Track the current state of auto mode
+
+        // Function to toggle auto mode
+        function toggleAutoMode() {
+            const command = autoModeEnabled ? 'disable_auto' : 'enable_auto';
+
+            fetch('/control', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ command: command })
+            })
+            .then(response => response.json())
+            .then(data => {
+                console.log(data.status);
+                autoModeEnabled = !autoModeEnabled;  // Toggle the local state
+                updateAutoToggleButton();  // Update the button label
+            })
+            .catch(error => console.error('Error:', error));
+        }
+
+        // Function to update the auto toggle button's label
+        function updateAutoToggleButton() {
+            const autoToggleBtn = document.getElementById('autoToggleBtn');
+            if (autoModeEnabled) {
+                autoToggleBtn.textContent = 'Disable Auto';
+                autoToggleBtn.classList.add('button-danger');
+                autoToggleBtn.classList.remove('button-primary');
+            } else {
+                autoToggleBtn.textContent = 'Enable Auto';
+                autoToggleBtn.classList.add('button-primary');
+                autoToggleBtn.classList.remove('button-danger');
+            }
+        }
+
+        // Function to send other commands (e.g., emergency stop)
+        function sendCommand(command) {
+            fetch('/control', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ command: command })
+            })
+            .then(response => response.json())
+            .then(data => console.log(data.status))
+            .catch(error => console.error('Error:', error));
+        }
+
+        // Fetch the initial state from the server on page load
+        function fetchInitialState() {
+            fetch('/status')
+                .then(response => response.json())
+                .then(data => {
+                    autoModeEnabled = data.auto_mode;  // Get the initial state from the server
+                    updateAutoToggleButton();  // Set the initial button label
+                })
+                .catch(error => console.error('Error fetching initial state:', error));
+        }
+
+        // Fetch the initial state when the page loads
+        window.onload = fetchInitialState;
+    </script>
+</body>
+</html>
