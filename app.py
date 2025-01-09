@@ -46,6 +46,16 @@ config = picam2.create_preview_configuration(main={"size": (480, 240), "format":
 picam2.configure(config)
 picam2.start()
 
+prevDataTime = 0
+last_data_time = time.time()
+
+nrf_condition = Condition()
+
+current_speed = 0
+
+def set_speed(pi, esc_pin, speed):
+    pi.set_servo_pulsewidth(pi, esc_pin, speed)
+    current_speed = speed
 
 def set_servo_pulsewidth(pi, servo_pin, angle):
     corrected_angle = angle - 35
@@ -55,7 +65,6 @@ def set_servo_pulsewidth(pi, servo_pin, angle):
         pulsewidth = ((corrected_angle - 90) / 90.0) * 400 + 1600
     pulsewidth = max(1000, min(2000, pulsewidth))
     pi.set_servo_pulsewidth(servo_pin, pulsewidth)
-
 
 def steer_with_pid(pi, servo_pin, current_deviation):
     if abs(current_deviation) > tolerance:
@@ -124,7 +133,9 @@ def getDeviation(img, display=1):
     if curve < -1:
         curve = -1
 
-    deviation = lane_center - ((wT /2)+25)
+    deviation = lane_center - ((wT /2)+15)
+    
+    if lane_center < 5: deviation = -255
 
     # Display the final result
     if display == 2:
@@ -146,7 +157,6 @@ def getDeviation(img, display=1):
     return deviation, imgResult
 
 
-
 @app.route('/stream')
 def stream():
     return Response(mjpeg_stream(), mimetype='multipart/x-mixed-replace; boundary=frame')
@@ -157,11 +167,9 @@ def mjpeg_stream():
         _, jpeg = cv2.imencode('.jpg', imgResult)
         yield (b'--frame\r\nContent-Type: image/jpeg\r\n\r\n' + jpeg.tobytes() + b'\r\n')
 
-
 @app.route('/')
 def index():
     return render_template('index.html')
-
 
 auto_mode = Event()  # Use threading.Event for auto mode state
 
@@ -187,10 +195,9 @@ def control():
 def status():
     return jsonify({"auto_mode": auto_mode.is_set()})  # Return current auto mode state
 
-prevDataTime = 0
-last_data_time = time.time()
-
-nrf_condition = Condition()
+@app.route('/speed', methods=['GET'])
+def speed():
+    return jsonify({"speed": current_speed})
 
 def nrf_receiver():
     global last_data_time, prevDataTime
@@ -213,7 +220,7 @@ def nrf_receiver():
                         speed = values[3]
                         if not auto_mode.is_set():
                             set_servo_pulsewidth(pi, STEERING_PIN, values[2])
-                            pi.set_servo_pulsewidth(ESC_PIN, speed)
+                            set_speed(pi, ESC_PIN, speed)
 
                     else:
                         print("Data outdated")
@@ -222,32 +229,37 @@ def nrf_receiver():
             elif time.time() - last_data_time > 0.3:
                 print("No data received")
                 last_data_time = time.time()
-                pi.set_servo_pulsewidth(ESC_PIN, 1000)
+                set_speed(pi, ESC_PIN, 1000)
+                set_servo_pulsewidth(pi, STEERING_PIN, 85)
 
             # Notify the steering loop that NRF has processed data
             nrf_condition.notify()
-
 
 def steering_loop():
     auto_mode_active = False  # Flag to track auto mode state
 
     while not emergency_stop.is_set():
         with nrf_condition:
+
             nrf_condition.wait()  # Wait until NRF receiver signals
+            deviation, _ = getDeviation(picam2.capture_array())
 
-            if auto_mode.is_set():
-                # Auto mode is enabled
-                frame = picam2.capture_array()
-                deviation, _ = getDeviation(frame)
-                steer_with_pid(pi, STEERING_PIN, deviation)
-                pi.set_servo_pulsewidth(ESC_PIN, 1050)
-                auto_mode_active = True  # Update flag
-            else:
-                # Auto mode is disabled
-                if auto_mode_active:  # Check if auto mode was just disabled
-                    pi.set_servo_pulsewidth(ESC_PIN, 1000)  # Set ESC pulse width to 1000 once
-                    auto_mode_active = False  # Reset flag
+            if deviation == -255 and auto_mode_active: # When lane is not sensed, turn off auto and turn off motor
+                set_speed(pi, ESC_PIN, 1000)  # Set ESC pulse width to 1000 once
+                auto_mode_active = False  # Reset flag
 
+            elif deviation > -255: # Run only when lane is sensed
+                if auto_mode.is_set():
+                    steer_with_pid(pi, STEERING_PIN, deviation)
+                    set_speed(pi, ESC_PIN, 1050)
+                    auto_mode_active = True  # Update flag 
+
+                elif abs(deviation) > 30: # if lane deviation detected during manual control, auto takeover
+                    auto_mode.set()
+
+                elif auto_mode_active:
+                    set_speed(pi, ESC_PIN, 1000)  # Set ESC pulse width to 1000 once
+                    auto_mode_active = False  # Reset flag     
 
 
 

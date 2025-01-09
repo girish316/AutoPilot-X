@@ -10,43 +10,129 @@
             padding: 0;
             overflow: hidden;
             font-family: Arial, sans-serif;
-            background-color: #1c1f26;
+            background-color: #222;
         }
 
         img#cameraFeed {
             position: absolute;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
+            left: 40px;
+            top: 40px;
+            
+            width: 70vw;
+            height: 35vw;
             object-fit: cover;
             z-index: -1;
+
+            border-radius: 25px;
+            box-shadow: black 0 0 50px;
         }
 
         .controls {
             position: absolute;
-            bottom: 20px;
-            left: 20px;
+            top: 420px;
+            right: 40px;
             z-index: 1;
+
+            display: flex;
+            gap: 25px;
         }
 
         .button {
             padding: 10px 20px;
             margin: 5px;
-            font-size: 16px;
+            font-size: 30px;
+            font-family:Verdana, Geneva, Tahoma, sans-serif;
             cursor: pointer;
             border: none;
-            border-radius: 5px;
+            border-radius: 200px;
             color: white;
+
+            box-shadow: #c8c8c8 0 0 15px,  black 0 0 50px ;
+
+            width: 150px;
+            height: 150px;
+
+            text-shadow: black 0 0 15px;
+
+            transition-duration: 0.3s;
         }
 
         .button-primary {
-            background-color: #4CAF50;
+            background: radial-gradient(#4CAF50, rgb(0, 0, 0));
+
+            &:hover{
+                background: radial-gradient(#4CAF50, rgb(32, 32, 32));
+                transform: scale(0.95); /* Slight scale-up effect */
+            }
         }
 
         .button-danger {
-            background-color: #f44336;
+            background: radial-gradient(#f44336, black);
+
+            &:hover{
+                background: radial-gradient(#f44336, rgb(32, 32, 32));
+                transform: scale(0.95); /* Slight scale-up effect */
+            }
         }
+
+        .loading-bar {
+            width: 1200px;
+            height: 20px;
+
+            bottom: calc((100vh - 35vw)/2 - 35px);
+            left: calc((100vw - 1200px)/ 2);
+            background: #555;
+            border-radius: 10px;
+            overflow: hidden;
+            position: absolute;
+        }
+
+        .bigcircle{
+            background-color: white;
+
+            width: 40px;
+            height: 40px;
+            border-radius: 40px;
+
+            position: absolute;
+            box-shadow: black 0 0 20px;
+            bottom: calc((100vh - 35vw)/2 - 44px);
+        }
+
+        .a1{
+            left: 150px;
+        }
+        .a2{
+            right: 150px;
+        }
+
+        .smallcircle{
+            background-color: #222;
+
+            width: 20px;
+            height: 20px;
+            border-radius: 20px;
+
+            bottom: calc((100vh - 35vw)/2 - 93px);
+            left: 10px;
+            position: absolute;
+            box-shadow: black 0 0 20px;
+        }
+
+        .loading-barbg{
+            width: 1200px;
+            height: 20px;
+
+            bottom: calc((100vh - 35vw)/2 - 35px);
+            left: calc((100vw - 1200px)/ 2);
+            background: #555;
+            border-radius: 10px;
+            overflow: hidden;
+            position: absolute;
+            
+            z-index: -1;
+        }
+
     </style>
 </head>
 <body>
@@ -55,9 +141,17 @@
 
     <!-- Controls -->
     <div class="controls">
-        <button id="autoToggleBtn" class="button button-primary" onclick="toggleAutoMode()">Enable Auto</button>
-        <button class="button button-danger" onclick="sendCommand('emergency_stop')">Emergency Stop</button>
+        <button id="autoToggleBtn" class="button button-primary" onclick="toggleAutoMode()">Auto</button>
+        <button class="button button-danger" onclick="sendCommand('emergency_stop')">E-Stop</button>
     </div>
+
+    <div class="loading-bar"></div>
+    <div class="loading-barbg"></div>
+
+    <div class="bigcircle a1"><div class="smallcircle b1"></div></div>
+    <div class="bigcircle a2"><div class="smallcircle b2"></div></div>
+
+
 
     <script>
         let autoModeEnabled = false;  // Track the current state of auto mode
@@ -84,11 +178,9 @@
         function updateAutoToggleButton() {
             const autoToggleBtn = document.getElementById('autoToggleBtn');
             if (autoModeEnabled) {
-                autoToggleBtn.textContent = 'Disable Auto';
                 autoToggleBtn.classList.add('button-danger');
                 autoToggleBtn.classList.remove('button-primary');
             } else {
-                autoToggleBtn.textContent = 'Enable Auto';
                 autoToggleBtn.classList.add('button-primary');
                 autoToggleBtn.classList.remove('button-danger');
             }
@@ -119,6 +211,34 @@
 
         // Fetch the initial state when the page loads
         window.onload = fetchInitialState;
+
+        function fetchSpeed() {
+            fetch('/speed')
+                .then(response => response.json())
+                .then(data => {
+                    let speed = data.speed;
+                    let width = ((speed - 1000) / 500) * 1200
+                    let loadingBar = document.querySelector('.loading-bar');
+                    loadingBar.style.width = width + 'px';
+                    loadingBar.style.backgroundColor = interpolateColor(speed);
+                })
+                .catch(error => console.error('Error fetching speed:', error));
+        }
+
+        function interpolateColor(speed) {
+            // Normalize speed to a value between 0 and 1
+            let normalizedSpeed = (speed - 1000) / 500;
+            normalizedSpeed = Math.min(Math.max(normalizedSpeed, 0), 1); // Clamp between 0 and 1
+
+            // Interpolate between cyan and red
+            let r = Math.round(255 * normalizedSpeed);
+            let g = Math.round(255 * (1 - normalizedSpeed));
+            let b = 255 * (1 - normalizedSpeed);
+
+            return `rgb(${r}, ${g}, ${b})`;
+        }
+        setInterval(fetchSpeed, 100);
+
     </script>
 </body>
 </html>

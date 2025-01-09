@@ -3,10 +3,10 @@ import numpy as np
  
 def thresholding(img):
     imgHsv = cv2.cvtColor(img,cv2.COLOR_BGR2HSV)
-    lowerWhite = np.array([80,0,0])
-    upperWhite = np.array([255,160,255])
-    maskWhite = cv2.inRange(imgHsv,lowerWhite,upperWhite)
-    return maskWhite
+    lowerColor = np.array([50,70,100])
+    upperColor = np.array([130,255,255])
+    maskColor = cv2.inRange(imgHsv,lowerColor,upperColor)
+    return maskColor
  
 def warpImg(img,points,w,h,inv = False):
     pts1 = np.float32(points)
@@ -30,7 +30,7 @@ def initializeTrackbars(intialTracbarVals,wT=480, hT=240):
     cv2.createTrackbar("Height Bottom", "Trackbars", intialTracbarVals[3], hT, nothing)
  
 def valTrackbars(wT=480, hT=240):
-    widthTop, heightTop, widthBottom, heightBottom = 120, 127, 20, 240
+    widthTop, heightTop, widthBottom, heightBottom = 70, 127, 0, 240
 
     points = np.float32([(widthTop, heightTop), (wT-widthTop, heightTop),
                       (widthBottom , heightBottom ), (wT-widthBottom, heightBottom)])
