@@ -9,7 +9,7 @@ import utlis
 import time
 import pigpio
 from simple_pid import PID
-from threading import Thread, Event
+from threading import Condition, Thread, Event
 import keyboard
 from nrf24 import *
 
@@ -189,6 +189,9 @@ def status():
 
 prevDataTime = 0
 last_data_time = time.time()
+
+nrf_condition = Condition()
+
 def nrf_receiver():
     global last_data_time, prevDataTime
     nrf = NRF24(pi, ce=12, payload_size=RF24_PAYLOAD.DYNAMIC, channel=100, data_rate=RF24_DATA_RATE.RATE_250KBPS, pa_level=RF24_PA.MIN)
@@ -198,31 +201,54 @@ def nrf_receiver():
     nrf.show_registers()
 
     while not emergency_stop.is_set():
-        if nrf.data_ready():
-            pipe = nrf.data_pipe()
-            payload = nrf.get_payload()
+        with nrf_condition:
+            if nrf.data_ready():
+                pipe = nrf.data_pipe()
+                payload = nrf.get_payload()
 
-            if len(payload) == 9 and payload[0] == 0x01:
-                values = struct.unpack("<BLhh", payload)
-                if prevDataTime < values[1]:
-                    print(f'Protocol: {values[0]}, time: {values[1]}, x: {values[2]}, y: {values[3]}')
-                    speed = (values[3] - 1000) / 2 + 1000
-                    pi.set_servo_pulsewidth(ESC_PIN, speed)
-                    if not auto_mode.is_set():
-                        set_servo_pulsewidth(pi, STEERING_PIN, values[2])
-                else:
-                    print("Data outdated")
-        elif time.time() - last_data_time > 0.25:
-            print("No data received")
-            last_data_time = time.time()
-            pi.set_servo_pulsewidth(ESC_PIN, 1000)            
+                if len(payload) == 9 and payload[0] == 0x01:
+                    values = struct.unpack("<BLhh", payload)
+                    if prevDataTime < values[1]:
+                        print(f'Protocol: {values[0]}, time: {values[1]}, x: {values[2]}, y: {values[3]}')
+                        speed = values[3]
+                        if not auto_mode.is_set():
+                            set_servo_pulsewidth(pi, STEERING_PIN, values[2])
+                            pi.set_servo_pulsewidth(ESC_PIN, speed)
+
+                    else:
+                        print("Data outdated")
+                    last_data_time = time.time()
+
+            elif time.time() - last_data_time > 0.3:
+                print("No data received")
+                last_data_time = time.time()
+                pi.set_servo_pulsewidth(ESC_PIN, 1000)
+
+            # Notify the steering loop that NRF has processed data
+            nrf_condition.notify()
+
 
 def steering_loop():
+    auto_mode_active = False  # Flag to track auto mode state
+
     while not emergency_stop.is_set():
-        frame = picam2.capture_array()
-        deviation, _ = getDeviation(frame)
-        if auto_mode.is_set():
-            steer_with_pid(pi, STEERING_PIN, deviation)
+        with nrf_condition:
+            nrf_condition.wait()  # Wait until NRF receiver signals
+
+            if auto_mode.is_set():
+                # Auto mode is enabled
+                frame = picam2.capture_array()
+                deviation, _ = getDeviation(frame)
+                steer_with_pid(pi, STEERING_PIN, deviation)
+                pi.set_servo_pulsewidth(ESC_PIN, 1050)
+                auto_mode_active = True  # Update flag
+            else:
+                # Auto mode is disabled
+                if auto_mode_active:  # Check if auto mode was just disabled
+                    pi.set_servo_pulsewidth(ESC_PIN, 1000)  # Set ESC pulse width to 1000 once
+                    auto_mode_active = False  # Reset flag
+
+
 
 
 # Start NRF receiver and steering loop in separate threads
